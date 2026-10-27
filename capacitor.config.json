@@ -1,0 +1,9 @@
+{
+  "appId": "ir.postyar.app",
+  "appName": "پُستیار",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}

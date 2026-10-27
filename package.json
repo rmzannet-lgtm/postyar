@@ -1,0 +1,31 @@
+{
+  "name": "postyar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "پُستیار - اپلیکیشن آفلاین مدیریت مرسولات (ثبت، تحویل، برگشت، گزارش)",
+  "scripts": {
+    "build:www": "node scripts/vendor.js",
+    "android:add": "npx cap add android && node scripts/patch-android.js",
+    "android:icons": "npx capacitor-assets generate --android --iconBackgroundColor \"#0f1a3a\" --iconBackgroundColorDark \"#0f1a3a\" --splashBackgroundColor \"#0f1a3a\" --splashBackgroundColorDark \"#0f1a3a\"",
+    "android:sync": "npm run build:www && npx cap sync android",
+    "android:debug": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:open": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/app": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/filesystem": "^6.0.0",
+    "@capacitor/share": "^6.0.0",
+    "@capacitor/status-bar": "^6.0.0",
+    "@capacitor-community/speech-recognition": "^6.0.0",
+    "@capacitor-mlkit/barcode-scanning": "^6.0.0",
+    "@fontsource/vazirmatn": "^5.0.0",
+    "jszip": "^3.10.1",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.0.0"
+  }
+}
