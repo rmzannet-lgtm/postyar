@@ -16,6 +16,11 @@ function copy(from, to) {
 copy('xlsx/dist/xlsx.full.min.js', 'xlsx.full.min.js');
 copy('jszip/dist/jszip.min.js', 'jszip.min.js');
 
+// هسته Capacitor برای صفحه وب (اگر نبود، اپ با حالت جایگزین کار می‌کند)
+const capSrc = path.join(root, 'node_modules', '@capacitor', 'core', 'dist', 'capacitor.js');
+if (fs.existsSync(capSrc)) { fs.copyFileSync(capSrc, path.join(out, 'capacitor.js')); console.log('✓ capacitor.js'); }
+else console.warn('! capacitor.js پیدا نشد؛ حالت جایگزین استفاده می‌شود');
+
 // فونت وزیرمتن (محلی)
 const RANGES = {
   arabic: 'U+0600-06FF,U+0750-077F,U+0870-088E,U+0890-0891,U+0898-08E1,U+08E3-08FF,U+200C-200E,U+2010-2011,U+204F,U+2E41,U+FB50-FDFF,U+FE70-FE74,U+FE76-FEFC',
