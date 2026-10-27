@@ -24,14 +24,13 @@ if (!m.includes('android.speech.RecognitionService')) {
   m = m.replace('</manifest>', '    <queries>\n        <intent>\n            <action android:name="android.speech.RecognitionService" />\n        </intent>\n    </queries>\n</manifest>');
 }
 if (!m.includes('screenOrientation')) m = m.replace('<activity', '<activity\n            android:screenOrientation="portrait"');
-if (!m.includes('PortraitCaptureActivity')) {
+if (!m.includes('xmlns:tools')) m = m.replace('<manifest ', '<manifest xmlns:tools="http://schemas.android.com/tools" ');
+if (!m.includes('com.journeyapps.barcodescanner.CaptureActivity')) {
   m = m.replace('</application>',
     `    <activity
-            android:name="${appId}.PortraitCaptureActivity"
-            android:screenOrientation="portrait"
-            android:stateNotNeeded="true"
-            android:theme="@style/zxing_CaptureTheme"
-            android:windowSoftInputMode="stateAlwaysHidden" />
+            android:name="com.journeyapps.barcodescanner.CaptureActivity"
+            android:screenOrientation="fullSensor"
+            tools:replace="android:screenOrientation" />
     </application>`);
 }
 fs.writeFileSync(mf, m);
@@ -52,15 +51,6 @@ if (!g.includes('zxing-android-embedded')) {
 console.log('✓ app/build.gradle (zxing-android-embedded:4.3.0)');
 
 /* ---------- ۴) کدهای جاوا ---------- */
-fs.writeFileSync(path.join(javaDir, 'PortraitCaptureActivity.java'),
-`package ${appId};
-
-import com.journeyapps.barcodescanner.CaptureActivity;
-
-public class PortraitCaptureActivity extends CaptureActivity {
-}
-`);
-
 fs.writeFileSync(path.join(javaDir, 'ZxingScannerPlugin.java'),
 `package ${appId};
 
@@ -103,9 +93,9 @@ public class ZxingScannerPlugin extends Plugin {
     private void start(PluginCall call) {
         ScanOptions o = new ScanOptions();
         o.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES);
-        o.setCaptureActivity(PortraitCaptureActivity.class);
         o.setPrompt("${jstr('بارکد را داخل کادر بگیرید')}");
-        o.setBeepEnabled(false);
+        o.setBeepEnabled(true);
+        o.setOrientationLocked(false);
         o.setBarcodeImageEnabled(false);
         Intent intent = o.createScanIntent(getContext());
         startActivityForResult(call, intent, "scanResult");
@@ -137,4 +127,4 @@ public class MainActivity extends BridgeActivity {
     }
 }
 `);
-console.log('✓ ZxingScannerPlugin / PortraitCaptureActivity / MainActivity');
+console.log('✓ ZxingScannerPlugin / MainActivity');
