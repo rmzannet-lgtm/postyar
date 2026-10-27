@@ -1,8 +1,27 @@
 /* پل بین وب‌اپ و قابلیت‌های بومی اندروید (فقط داخل اپ نصب‌شده فعال می‌شود) */
 (() => {
-  const C = window.Capacitor;
-  if (!C || !C.isNativePlatform || !C.isNativePlatform()) return;
-  const P = n => C.registerPlugin(n);
+  const C0 = window.Capacitor;
+  if (!C0) return; /* مرورگر معمولی */
+  const go_ = () => boot(window.Capacitor);
+  if (typeof C0.registerPlugin === 'function') go_();
+  else {
+    /* هسته Capacitor هنوز بارگذاری نشده: خودمان بارگذاری می‌کنیم (اگر نبود، حالت جایگزین) */
+    const s = document.createElement('script');
+    s.src = 'vendor/capacitor.js';
+    s.onload = go_; s.onerror = go_;
+    document.head.appendChild(s);
+  }
+
+  function boot(C) {
+  const plat = C.getPlatform ? C.getPlatform() : (C.isNative ? 'android' : 'web');
+  const isNative = C.isNativePlatform ? C.isNativePlatform() : (plat !== 'web' || !!C.PluginHeaders);
+  if (!isNative) return;
+  const P = n => (typeof C.registerPlugin === 'function')
+    ? C.registerPlugin(n)
+    : new Proxy({}, { get: (_, m) => (m === 'then' ? undefined : (o) => {
+        if (m === 'addListener') return Promise.reject(new Error('listener'));
+        return C.nativePromise(n, m, o || {});
+      }) });
   const FS = P('Filesystem'), SH = P('Share'), ZX = P('ZxingScanner'),
         SP = P('SpeechRecognition'), AP = P('App'), SB = P('StatusBar');
   document.documentElement.classList.add('native');
@@ -85,13 +104,17 @@
   };
 
   /* ---------- دکمه بازگشت اندروید ---------- */
-  AP.addListener('backButton', () => {
+  Promise.resolve(AP.addListener('backButton', () => {
     if (document.getElementById('scan').style.display === 'flex') return closeScan();
     if (!document.getElementById('sheet').classList.contains('hide')) return closeSheet();
     if (!document.getElementById('t-home').classList.contains('hide')) return AP.exitApp();
     go('home');
-  });
+  })).catch(() => {});
 
   /* ---------- نوار وضعیت ---------- */
   try { SB.setBackgroundColor({ color: '#0f1a3a' }); SB.setStyle({ style: 'DARK' }); } catch (e) {}
+
+  const t = document.getElementById('t-set');
+  if (t) t.insertAdjacentHTML('beforeend', "<p class='hint' style='text-align:center'>نسخه بومی فعال است \u2713 (اسکنر ZXing)</p>");
+  }
 })();
