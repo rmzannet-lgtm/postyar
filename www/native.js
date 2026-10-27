@@ -3,7 +3,7 @@
   const C = window.Capacitor;
   if (!C || !C.isNativePlatform || !C.isNativePlatform()) return;
   const P = n => C.registerPlugin(n);
-  const FS = P('Filesystem'), SH = P('Share'), BS = P('BarcodeScanner'),
+  const FS = P('Filesystem'), SH = P('Share'), ZX = P('ZxingScanner'),
         SP = P('SpeechRecognition'), AP = P('App'), SB = P('StatusBar');
   document.documentElement.classList.add('native');
   try { Object.defineProperty(navigator, 'canShare', { value: () => false }); } catch (e) {}
@@ -37,37 +37,17 @@
     return oldClick.call(this);
   };
 
-  /* ---------- اسکنر بارکد (ML Kit، آفلاین) ---------- */
-  let listener = null;
-  window.stopScan = async function () {
-    document.documentElement.classList.remove('scanning');
-    document.body.classList.remove('scanning', 'barcode-scanner-active');
-    document.getElementById('scan').style.display = 'none';
-    try { if (listener) { await listener.remove(); listener = null; } await BS.stopScan(); } catch (e) {}
-  };
+  /* ---------- اسکنر بارکد (ZXing Android Embedded، آفلاین، تمام‌صفحه) ---------- */
   window.scan = async function (cb) {
     try {
-      const s = await BS.isSupported();
-      if (!s.supported) { toast('اسکنر روی این دستگاه پشتیبانی نمی‌شود؛ بارکد را دستی وارد کنید'); return; }
-      let p = await BS.checkPermissions();
-      if (p.camera !== 'granted') p = await BS.requestPermissions();
-      if (p.camera !== 'granted') { toast('دسترسی به دوربین داده نشد'); return; }
-      document.documentElement.classList.add('scanning');
-      document.body.classList.add('scanning', 'barcode-scanner-active');
-      document.getElementById('scan').style.display = 'flex';
-      let done = false;
-      listener = await BS.addListener('barcodesScanned', async ev => {
-        const code = ev.barcodes && ev.barcodes[0] && ev.barcodes[0].rawValue;
-        if (!code || done) return;
-        done = true;
-        await window.stopScan();
+      const r = await ZX.scan();
+      if (r && r.text) {
         navigator.vibrate && navigator.vibrate(60);
-        cb(code);
-      });
-      await BS.startScan();
+        cb(r.text);
+      }
+      /* اگر کاربر با دکمه بازگشت خارج شد، cb صدا زده نمی‌شود و اسکن پشت‌سرهم هم متوقف می‌شود */
     } catch (e) {
-      await window.stopScan();
-      toast('اسکن ممکن نشد؛ بارکد را دستی وارد کنید');
+      toast('دسترسی به دوربین داده نشد؛ بارکد را دستی وارد کنید');
     }
   };
 
