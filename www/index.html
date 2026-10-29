@@ -89,6 +89,7 @@ body.scanning #scan{background:transparent;justify-content:flex-end;visibility:v
 body.scanning #scan video{display:none}
 body.scanning #scan::before{content:"";position:absolute;inset-inline:12%;top:34%;height:22%;border:3px solid var(--am);border-radius:18px;box-shadow:0 0 0 9999px rgba(0,0,0,.45)}
 body.scanning #scan p{text-shadow:0 1px 4px #000;position:relative}
+.pl{color:var(--pr);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -136,8 +137,10 @@ body.scanning #scan p{text-shadow:0 1px 4px #000;position:relative}
  <div id="d-form" class="card hide">
   <label>نام تحویل‌گیرنده</label><input id="d-rn">
   <label>شماره ملی</label><input id="d-nid" inputmode="numeric" placeholder="۱۰ رقم"><div class="hint" id="d-nid-h"></div>
+  <label class="chk hide" id="d-nidforce-w" style="font-size:13px"><input type="checkbox" id="d-nidforce"> این شماره ملی را با وجود نامعتبر بودن ثبت کن</label>
   <label>تاریخ تولد (شمسی)</label><input id='d-dob' inputmode='numeric' placeholder='1370/05/12' dir='ltr' style='text-align:right'><div class='hint' id='d-dob-h'></div>
   <label>شماره تماس</label><input id="d-ph" inputmode="numeric" placeholder="09123456789"><div class="hint" id="d-ph-h"></div>
+  <label>آدرس (اختیاری)</label><input id="d-addr">
   <div id="d-cod" class="hide">
    <label>تصاویر رسید (پرداخت در محل)</label>
    <div class="pics">
@@ -295,7 +298,7 @@ function card(i){
  <div class="m">بارکد: ${esc(i.code)} • ${esc(i.phone)||'-'} • ${esc(i.type)}</div>
  <div class="m">${i.edited?'<span class="tag">ویرایش‌شده</span> ':''}${i.cod?'<span class="tag c">پرداخت در محل</span> ':''}${i.repeat?'<span class="tag">تکراری</span> ':''}ثبت: ${fa(i.created)}</div>
  ${i.desc?`<div class="m">${esc(i.desc)}</div>`:''}
- ${i.deliveredAt?`<div class="m">تحویل ${fa(i.deliveredAt)} به ${esc(i.recv.name)} (کد ملی ${esc(i.recv.nid)})</div>`:''}
+ ${i.deliveredAt?`<div class="m">تحویل ${fa(i.deliveredAt)} به <a class="pl" onclick="personView('${esc(i.recv.nid)}')">${esc(i.recv.name)}</a> (کد ملی ${esc(i.recv.nid)})${i.recv.addr?' — '+esc(i.recv.addr):''}</div>`:''}
  ${i.returnedAt?`<div class="m">برگشت ${fa(i.returnedAt)} — ${esc(i.reason)}${i.note?' ('+esc(i.note)+')':''}</div>`:''}</div>`;
 }
 
@@ -318,7 +321,7 @@ function loadD0(){
  if(!cur){$('d-info').innerHTML='<div class="hint no">مرسوله‌ای با این بارکد پیدا نشد.</div>';$('d-form').classList.add('hide');return}
  $('d-info').innerHTML=card(cur);const ok=cur.status==='pending';$('d-form').classList.toggle('hide',!ok);
  if(!ok){toast('این مرسوله در وضعیت انتظار نیست');return}
- $('d-cod').classList.toggle('hide',!cur.cod);$('d-rn').value=cur.name;$('d-ph').value=cur.phone;$('d-nid').value=$('d-dob').value='';$('d-nid-h').textContent='';$('d-dob-h').textContent='';
+ $('d-cod').classList.toggle('hide',!cur.cod);$('d-rn').value=cur.name;$('d-ph').value=cur.phone;$('d-nid').value=$('d-dob').value='';$('d-addr').value='';$('d-nid-h').textContent='';$('d-dob-h').textContent='';
 }
 function pick(n,inp){
  const f=inp.files[0];if(!f)return;const img=new Image();
@@ -338,11 +341,11 @@ async function saveImg(){if(!imgs[1]||!imgs[2])return;mergedBlob=await buildA4()
 function deliver0(){
  if(!cur)return;const nm=$('d-rn').value.trim(),nid=$('d-nid').value;
  if(!nm){toast('نام تحویل‌گیرنده را وارد کنید');return}
- if(!nidOk(nid)){toast('شماره ملی معتبر نیست');return}
+ if(!nidPass(nid)){toast('شماره ملی معتبر نیست (برای ثبت، تیک تأیید زیر فیلد را بزنید)');return}
  if(!dobCheck($('d-dob').value).ok){toast('تاریخ تولد معتبر نیست (مثال 1370/05/12)');return}
  if($('d-ph').value&&$('d-ph').value.length!==11){toast('شماره تماس باید ۱۱ رقم باشد');return}
  if(cur.cod&&!mergedBlob){toast('هر دو تصویر رسید را اضافه کنید');return}
- Object.assign(cur,{status:'delivered',deliveredAt:Date.now(),recv:{name:nm,nid,dob:$('d-dob').value.trim(),phone:$('d-ph').value}});
+ Object.assign(cur,{status:'delivered',deliveredAt:Date.now(),recv:{name:nm,nid,dob:$('d-dob').value.trim(),phone:$('d-ph').value,addr:$('d-addr').value.trim()}});
  save();$('d-info').innerHTML=card(cur);$('d-form').classList.add('hide');toast('تحویل ثبت شد ✓');
 }
 
@@ -360,7 +363,7 @@ function doReturn(){if(!bc)return;Object.assign(bc,{status:'returned',returnedAt
 /* search */
 function find(){
  const q=lat($('s-q').value).trim().toLowerCase();
- const r=q?items.filter(i=>[i.code,i.name,i.phone,i.recv&&i.recv.name,i.recv&&i.recv.nid].some(v=>v&&String(v).toLowerCase().includes(q))):items.slice(-10).reverse();
+ const r=q?items.filter(i=>[i.code,i.name,i.phone,i.recv&&i.recv.name,i.recv&&i.recv.nid,i.recv&&i.recv.phone,i.recv&&i.recv.addr].some(v=>v&&String(v).toLowerCase().includes(q))):items.slice(-10).reverse();
  $('s-res').innerHTML=r.length?r.map(cardA).join(''):'<div class="card">نتیجه‌ای پیدا نشد. بارکد، نام یا بخشی از شماره تلفن را بررسی کنید.</div>';
 }
 
@@ -374,7 +377,7 @@ function rep(){
 function xlAll(){rep();if(!rows.length){toast('مرسوله‌ای برای خروجی نیست');return}xl()}
 function xl(){
  if(!window.XLSX){toast('کتابخانه اکسل بارگذاری نشد');return}
- const d=rows.map(i=>({'بارکد':i.code,'گیرنده':i.name,'تلفن':i.phone,'نوع':i.type,'توضیحات':i.desc,'پرداخت در محل':i.cod?'بله':'خیر','تکراری':i.repeat?'بله':'خیر','وضعیت':ST[i.status][0],'تاریخ ثبت':fa(i.created),'تاریخ تحویل':fa(i.deliveredAt),'تحویل‌گیرنده':i.recv?i.recv.name:'','شماره ملی':i.recv?i.recv.nid:'','تاریخ برگشت':fa(i.returnedAt),'دلیل برگشت':i.reason||''}));
+ const d=rows.map(i=>({'بارکد':i.code,'گیرنده':i.name,'تلفن':i.phone,'نوع':i.type,'توضیحات':i.desc,'پرداخت در محل':i.cod?'بله':'خیر','تکراری':i.repeat?'بله':'خیر','وضعیت':ST[i.status][0],'تاریخ ثبت':fa(i.created),'تاریخ تحویل':fa(i.deliveredAt),'تحویل‌گیرنده':i.recv?i.recv.name:'','شماره ملی':i.recv?i.recv.nid:'','تلفن تحویل‌گیرنده':i.recv?i.recv.phone:'','تاریخ تولد':i.recv?i.recv.dob:'','آدرس':i.recv?i.recv.addr||'':'','تاریخ برگشت':fa(i.returnedAt),'دلیل برگشت':i.reason||''}));
  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(d),'مرسولات');
  const b=new Blob([XLSX.write(wb,{bookType:'xlsx',type:'array'})],{type:'application/octet-stream'});
  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='parcels.xlsx';document.body.appendChild(a);a.click();a.remove();
@@ -557,7 +560,7 @@ const _ca=cardA;cardA=i=>{let h=_ca(i);if(i.hasImg)h=h.replace(`<div class='km h
 /* ---- تحویل چند مرسوله به یک نفر ---- */
 let sess=null;
 function loadD2(){loadD0();if(sess&&Date.now()-sess.t>9e5)sess=null;
- if(sess&&cur&&cur.status==='pending'){$('d-rn').value=sess.name;$('d-nid').value=sess.nid;$('d-dob').value=sess.dob;$('d-ph').value=sess.phone;['d-rn','d-nid','d-dob','d-ph'].forEach(id=>$(id).dispatchEvent(new Event('input')))}
+ if(sess&&cur&&cur.status==='pending'){$('d-rn').value=sess.name;$('d-nid').value=sess.nid;$('d-dob').value=sess.dob;$('d-ph').value=sess.phone;$('d-addr').value=sess.addr||'';['d-rn','d-nid','d-dob','d-ph'].forEach(id=>$(id).dispatchEvent(new Event('input')))}
  renderSess()}
 function renderSess(){const el=$('d-sess'),p=sess||(cur&&cur.status==='pending'?{name:cur.name,phone:cur.phone}:null);
  if(!p){el.innerHTML='';return}
@@ -570,7 +573,7 @@ function endSess(){sess=null;if(cur&&cur.status==='pending')loadD0();renderSess(
 async function deliver2(){const c=cur;
  if(c&&c.cod&&c.status==='pending'&&imgs[1]&&imgs[2]){try{mergedBlob=await buildA4()}catch(e){}}
  await deliver1();
- if(c&&c.status==='delivered'&&c.recv){sess={name:c.recv.name,nid:c.recv.nid,dob:c.recv.dob,phone:c.recv.phone,n:(sess&&sess.nid===c.recv.nid?sess.n:0)+1,t:Date.now()};renderSess()}}
+ if(c&&c.status==='delivered'&&c.recv){sess={name:c.recv.name,nid:c.recv.nid,dob:c.recv.dob,phone:c.recv.phone,addr:c.recv.addr||'',n:(sess&&sess.nid===c.recv.nid?sess.n:0)+1,t:Date.now()};renderSess()}}
 
 /* ---- پشتیبان کامل ZIP (با تصاویر رسید) ---- */
 const zipName=()=>'postyar-full-'+new Date().toISOString().slice(0,10)+'.zip';
@@ -611,7 +614,7 @@ function addB(code){const i=get(code||'');$('d-code').value='';
  if(B.some(b=>b.i===i)){if(Date.now()-ld>2500){toast('این مرسوله قبلاً در لیست است');ld=Date.now()}return}
  B.push({i,on:true,imgs:{},orig:{},th:{}});navigator.vibrate&&navigator.vibrate(40);
  if(B.length===1){const s=sess&&Date.now()-sess.t<9e5?sess:{name:i.name,nid:'',dob:'',phone:i.phone};
-  $('d-rn').value=s.name;$('d-nid').value=s.nid;$('d-dob').value=s.dob;$('d-ph').value=s.phone;['d-rn','d-nid','d-dob','d-ph'].forEach(id=>$(id).dispatchEvent(new Event('input')))}
+  $('d-rn').value=s.name;$('d-nid').value=s.nid;$('d-dob').value=s.dob;$('d-ph').value=s.phone;$('d-addr').value=s.addr||'';['d-rn','d-nid','d-dob','d-ph'].forEach(id=>$(id).dispatchEvent(new Event('input')))}
  renderB()}
 function bTog(k){B[k].on=!B[k].on;renderB()}
 function bDel(k){B.splice(k,1);renderB()}
@@ -629,25 +632,116 @@ async function deliverBatch(){
  const sel=B.filter(b=>b.on);if(!sel.length){toast('هیچ مرسوله‌ای انتخاب نشده است');return}
  const nm=$('d-rn').value.trim(),nid=$('d-nid').value;
  if(!nm){toast('نام تحویل‌گیرنده را وارد کنید');return}
- if(!nidOk(nid)){toast('شماره ملی معتبر نیست');return}
+ if(!nidPass(nid)){toast('شماره ملی معتبر نیست (برای ثبت، تیک تأیید زیر فیلد را بزنید)');return}
  if(!dobCheck($('d-dob').value).ok){toast('تاریخ تولد معتبر نیست (مثال 1370/05/12)');return}
  if($('d-ph').value&&$('d-ph').value.length!==11){toast('شماره تماس باید ۱۱ رقم باشد');return}
  for(const b of sel)if(b.i.cod&&(!b.imgs[1]||!b.imgs[2])){toast(`رسید مرسوله ${b.i.code} کامل نیست`);return}
- const recv={name:nm,nid,dob:$('d-dob').value.trim(),phone:$('d-ph').value},kc=cur,ki=imgs;
+ const recv={name:nm,nid,dob:$('d-dob').value.trim(),phone:$('d-ph').value,addr:$('d-addr').value.trim()},kc=cur,ki=imgs;
  for(const b of sel){const i=b.i;i.status='delivered';i.deliveredAt=Date.now();i.recv={...recv};
   if(i.cod){cur=i;imgs=b.imgs;try{await imgPut(i.code,await buildA4());i.hasImg=1;i.imgKey=i.code}catch(e){}}}
  cur=kc;imgs=ki;save();
  const cod=sel.filter(b=>b.i.hasImg&&b.i.cod);
  $('d-info').innerHTML=`<div class='card' style='margin-top:10px'><b>${nf(sel.length)} مرسوله تحویل شد ✓</b>${cod.map(b=>`<div class='row' style='margin-top:8px;align-items:center'><span style='flex:1'>${e2(b.i.code)}</span><button class='b alt' style='padding:5px 10px;font-size:13px;flex:0 0 auto' onclick='rShare(${items.indexOf(b.i)})'>ارسال رسید</button><button class='b alt' style='padding:5px 10px;font-size:13px;flex:0 0 auto' onclick='rView(${items.indexOf(b.i)})'>مشاهده</button></div>`).join('')}</div>`;
- B=B.filter(b=>!b.on);['d-rn','d-nid','d-dob','d-ph'].forEach(id=>{$(id).value='';});['d-nid-h','d-dob-h','d-ph-h'].forEach(id=>{$(id).textContent=''});
+ B=B.filter(b=>!b.on);['d-rn','d-nid','d-dob','d-ph','d-addr'].forEach(id=>{$(id).value='';});['d-nid-h','d-dob-h','d-ph-h'].forEach(id=>{$(id).textContent=''});
  renderB();toast(`${nf(sel.length)} مرسوله تحویل شد ✓`)}
 
 /* ---- پر شدن خودکار اطلاعات از روی شماره ملی ---- */
-$('d-nid').addEventListener('input',e=>{const v=e.target.value;if(v.length!==10||!nidOk(v))return;
+$('d-nid').addEventListener('input',e=>{const v=e.target.value;if(v.length!==10)return;
  const p=items.filter(i=>i.recv&&i.recv.nid===v).sort((a,b)=>b.deliveredAt-a.deliveredAt)[0];if(!p)return;
- const r=p.recv;$('d-rn').value=r.name||$('d-rn').value;$('d-dob').value=r.dob||'';$('d-ph').value=r.phone||'';
+ const r=p.recv;$('d-rn').value=r.name||$('d-rn').value;$('d-dob').value=r.dob||'';$('d-ph').value=r.phone||'';$('d-addr').value=r.addr||'';
  ['d-rn','d-dob','d-ph'].forEach(id=>$(id).dispatchEvent(new Event('input')));
- const h=$('d-nid-h');h.textContent='✓ اطلاعات از تحویل قبلی ('+fa(p.deliveredAt).split('،')[0]+') پر شد';h.className='hint ok'});
+ const h=$('d-nid-h');h.textContent='✓ اطلاعات از تحویل قبلی ('+fa(p.deliveredAt).split('،')[0]+') پر شد؛ '+nf(items.filter(i=>i.recv&&i.recv.nid===v).length)+' بسته قبلاً تحویل گرفته';h.className='hint ok'});
+/* ---- وارد کردن اطلاعات از اکسل سایت قبلی ---- */
+function j2g(jy,jm,jd){
+ const gdm=[31,28,31,30,31,30,31,31,30,31,30,31],jdm=[31,31,31,31,31,31,30,30,30,30,30,29];
+ jy-=979;jm-=1;jd-=1;
+ let jn=365*jy+Math.floor(jy/33)*8+Math.floor((jy%33+3)/4);
+ for(let i=0;i<jm;++i)jn+=jdm[i];
+ jn+=jd;let gn=jn+79,gy=1600+400*Math.floor(gn/146097);gn%=146097;let leap=true;
+ if(gn>=36525){gn--;gy+=100*Math.floor(gn/36524);gn%=36524;if(gn>=365)gn++;else leap=false}
+ gy+=4*Math.floor(gn/1461);gn%=1461;
+ if(gn>=366){leap=false;gn--;gy+=Math.floor(gn/365);gn%=365}
+ let i=0;for(;gn>=gdm[i]+(i===1&&leap?1:0);i++)gn-=gdm[i]+(i===1&&leap?1:0);
+ return[gy,i+1,gn+1];
+}
+const nd=s=>lat(String(s==null?'':s)).trim();
+const nT=s=>nd(s).replace(/\u064a/g,'\u06cc').replace(/\u0643/g,'\u06a9').replace(/\u200c/g,' ').replace(/\s+/g,' ').trim();
+function parseJ(s){
+ const m=nd(s).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:[ T]+(\d{1,2}):(\d{2}))?/);if(!m)return null;
+ let y=+m[1],mo=+m[2],d=+m[3];if(y<1700){[y,mo,d]=j2g(y,mo,d)}
+ return new Date(y,mo-1,d,m[4]?+m[4]:12,m[5]?+m[5]:0).getTime();
+}
+function mapSite(rows){
+ const hi=rows.findIndex(r=>r.some(c=>nT(c)==='\u0628\u0627\u0631\u06a9\u062f'));
+ if(hi<0)return{error:'\u0633\u062a\u0648\u0646 \u00ab\u0628\u0627\u0631\u06a9\u062f\u00bb \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f'};
+ const H={};rows[hi].forEach((c,i)=>{H[nT(c)]=i});
+ if(H['\u0641\u0631\u0633\u062a\u0646\u062f\u0647']==null)return{error:'\u0627\u06cc\u0646 \u0641\u0627\u06cc\u0644 \u0628\u0627 \u0642\u0627\u0644\u0628 \u0633\u0627\u06cc\u062a \u0642\u0628\u0644\u06cc \u0647\u0645\u200c\u062e\u0648\u0627\u0646\u06cc \u0646\u062f\u0627\u0631\u062f'};
+ const g=(r,k)=>H[k]==null?'':nT(r[H[k]]);
+ const ph=s=>{s=s.replace(/\D/g,'');return /^9\d{9}$/.test(s)?'0'+s:s};
+ const nid=s=>{s=s.replace(/\D/g,'');return s.length>=8&&s.length<10?s.padStart(10,'0'):s};
+ const dob=s=>{const m=s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);return m?`${m[1]}/${m[2].padStart(2,'0')}/${m[3].padStart(2,'0')}`:s};
+ const TP=['\u0628\u0633\u062a\u0647 \u06a9\u0648\u0686\u06a9','\u0628\u0633\u062a\u0647 \u0645\u062a\u0648\u0633\u0637','\u0628\u0633\u062a\u0647 \u0628\u0632\u0631\u06af','\u0634\u06a9\u0646\u062f\u0646\u06cc'];
+ const tp=t=>t==='\u067e\u0627\u06a9\u062a'?t:TP.includes(t)?t:'\u0628\u0633\u062a\u0647 \u0645\u062a\u0648\u0633\u0637';
+ const out=[],warn=[],seen=new Set();
+ for(const r of rows.slice(hi+1)){
+  const code=nd(r[H['\u0628\u0627\u0631\u06a9\u062f']]).replace(/\s/g,'');if(!code||seen.has(code))continue;
+  if(/e\+/i.test(code)){warn.push(`${code}: \u0628\u0627\u0631\u06a9\u062f \u0646\u0627\u062f\u0642\u06cc\u0642 (\u0627\u06a9\u0633\u0644 \u0639\u062f\u062f\u06cc \u06a9\u0631\u062f\u0647)`);continue}
+  seen.add(code);
+  const st=g(r,'\u0648\u0636\u0639\u06cc\u062a'),status=/\u062a\u062d\u0648\u06cc\u0644/.test(st)?'delivered':/\u0628\u0631\u06af\u0634/.test(st)?'returned':'pending';
+  const created=parseJ(g(r,'\u062a\u0627\u0631\u06cc\u062e \u062b\u0628\u062a'))||Date.now();
+  const it={code,name:g(r,'\u0641\u0631\u0633\u062a\u0646\u062f\u0647')||'\u0646\u0627\u0645\u0634\u062e\u0635',phone:ph(g(r,'\u062a\u0644\u0641\u0646 \u0641\u0631\u0633\u062a\u0646\u062f\u0647')),type:tp(g(r,'\u0646\u0648\u0639 \u0645\u0631\u0633\u0648\u0644\u0647')),desc:g(r,'\u062a\u0648\u0636\u06cc\u062d\u0627\u062a'),cod:false,repeat:false,status,created,imported:1};
+  if(it.phone&&!/^09\d{9}$/.test(it.phone))warn.push(`${code}: \u062a\u0644\u0641\u0646 \u0646\u0627\u0645\u0639\u062a\u0628\u0631`);
+  if(status==='delivered'){
+   it.deliveredAt=parseJ(g(r,'\u062a\u0627\u0631\u06cc\u062e \u062a\u062d\u0648\u06cc\u0644'))||created;
+   it.recv={name:g(r,'\u06af\u06cc\u0631\u0646\u062f\u0647')||it.name,nid:nid(g(r,'\u06a9\u062f \u0645\u0644\u06cc')),dob:dob(g(r,'\u062a\u0627\u0631\u06cc\u062e \u062a\u0648\u0644\u062f')),phone:ph(g(r,'\u062a\u0644\u0641\u0646 \u06af\u06cc\u0631\u0646\u062f\u0647'))||it.phone,addr:g(r,'\u0622\u062f\u0631\u0633')};
+   if(it.recv.nid&&!nidOk(it.recv.nid))warn.push(`${code}: \u06a9\u062f \u0645\u0644\u06cc \u0646\u0627\u0645\u0639\u062a\u0628\u0631`);
+  }
+  if(status==='returned'){
+   const raw=g(r,'\u0639\u0644\u062a \u0628\u0631\u06af\u0634\u062a'),m=raw.match(/^(.*?)\s*\(\u062a\u0648\u0636\u06cc\u062d\u0627\u062a:\s*(.*)\)$/),rs=(m?m[1]:raw)||'\u0633\u0627\u06cc\u0631';
+   it.reason=rs==='\u0639\u062f\u0645 \u062d\u0636\u0648\u0631 \u06af\u06cc\u0631\u0646\u062f\u0647'?'\u0639\u062f\u0645 \u0645\u0631\u0627\u062c\u0639\u0647 \u0645\u0634\u062a\u0631\u06cc':rs;it.note=m?m[2]:'';
+   it.returnedAt=parseJ(g(r,'\u062a\u0627\u0631\u06cc\u062e \u0628\u0631\u06af\u0634\u062a'))||created;
+  }
+  out.push(it);
+ }
+ return{items:out,warn};
+}
+async function xlsImport(inp){
+ const f=inp.files[0];inp.value='';if(!f)return;
+ if(!window.XLSX){toast('\u06a9\u062a\u0627\u0628\u062e\u0627\u0646\u0647 \u0627\u06a9\u0633\u0644 \u0628\u0627\u0631\u06af\u0630\u0627\u0631\u06cc \u0646\u0634\u062f');return}
+ try{
+  const wb=XLSX.read(await f.arrayBuffer(),{type:'array'}),rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false,defval:''});
+  const r=mapSite(rows);if(r.error){toast(r.error);return}
+  const have=new Set(items.map(i=>i.code)),add=r.items.filter(i=>!have.has(i.code)),dup=r.items.length-add.length,c=k=>add.filter(i=>i.status===k).length;
+  if(!add.length){toast(dup?'\u0647\u0645\u0647 \u0628\u0627\u0631\u06a9\u062f\u0647\u0627 \u0642\u0628\u0644\u0627\u064b \u062f\u0631 \u0627\u067e \u0647\u0633\u062a\u0646\u062f':'\u0645\u0631\u0633\u0648\u0644\u0647\u200c\u0627\u06cc \u062f\u0631 \u0641\u0627\u06cc\u0644 \u067e\u06cc\u062f\u0627 \u0646\u0634\u062f');return}
+  const ok=await ask('\u0648\u0627\u0631\u062f \u06a9\u0631\u062f\u0646 \u0627\u0632 \u0627\u06a9\u0633\u0644',`<b>${nf(add.length)}</b> \u0645\u0631\u0633\u0648\u0644\u0647 \u062c\u062f\u06cc\u062f \u0648\u0627\u0631\u062f \u0645\u06cc\u200c\u0634\u0648\u062f: ${nf(c('pending'))} \u062f\u0631 \u0627\u0646\u062a\u0638\u0627\u0631\u060c ${nf(c('delivered'))} \u062a\u062d\u0648\u06cc\u0644\u200c\u0634\u062f\u0647\u060c ${nf(c('returned'))} \u0628\u0631\u06af\u0634\u062a\u06cc.<br>${dup?nf(dup)+' \u0645\u0631\u0633\u0648\u0644\u0647 \u0686\u0648\u0646 \u0628\u0627\u0631\u06a9\u062f\u0634 \u0642\u0628\u0644\u0627\u064b \u062f\u0631 \u0627\u067e \u0628\u0648\u062f \u0631\u062f \u0634\u062f.<br>':''}${r.warn.length?'<small>'+nf(r.warn.length)+' \u0647\u0634\u062f\u0627\u0631 (\u0645\u062b\u0644\u0627\u064b \u06a9\u062f \u0645\u0644\u06cc \u06cc\u0627 \u062a\u0644\u0641\u0646 \u0646\u0627\u0645\u0639\u062a\u0628\u0631)\u061b \u0627\u0637\u0644\u0627\u0639\u0627\u062a \u0647\u0645\u0686\u0646\u0627\u0646 \u0648\u0627\u0631\u062f \u0645\u06cc\u200c\u0634\u0648\u062f.</small>':''}`,'\u0648\u0627\u0631\u062f \u0634\u0648\u062f',false);
+  if(!ok)return;
+  {const bt=Date.now();add.forEach(i=>{i.imp=bt;i.impSt=i.status})}items.push(...add);save();home();find();toast(`${nf(add.length)} \u0645\u0631\u0633\u0648\u0644\u0647 \u0648\u0627\u0631\u062f \u0634\u062f \u2713`);
+ }catch(e){toast('\u062e\u0648\u0627\u0646\u062f\u0646 \u0641\u0627\u06cc\u0644 \u0627\u06a9\u0633\u0644 \u0645\u0645\u06a9\u0646 \u0646\u0634\u062f')}
+}
+$('t-set').insertAdjacentHTML('beforeend',`<div class='card'><b>\u0648\u0627\u0631\u062f \u06a9\u0631\u062f\u0646 \u0627\u0637\u0644\u0627\u0639\u0627\u062a \u0627\u0632 \u0633\u0627\u06cc\u062a \u0642\u0628\u0644\u06cc (\u0627\u06a9\u0633\u0644)</b><p class='hint' style='min-height:0'>\u0641\u0627\u06cc\u0644 \u0627\u06a9\u0633\u0644 \u062e\u0631\u0648\u062c\u06cc \u0633\u0627\u06cc\u062a \u0642\u062f\u06cc\u0645\u06cc \u0631\u0627 \u0627\u0646\u062a\u062e\u0627\u0628 \u06a9\u0646\u06cc\u062f. \u0645\u0631\u0633\u0648\u0644\u0647\u200c\u0647\u0627\u06cc\u06cc \u06a9\u0647 \u0628\u0627\u0631\u06a9\u062f\u0634\u0627\u0646 \u0642\u0628\u0644\u0627\u064b \u062f\u0631 \u0627\u067e \u0647\u0633\u062a\u060c \u062f\u0633\u062a\u200c\u0646\u062e\u0648\u0631\u062f\u0647 \u0645\u06cc\u200c\u0645\u0627\u0646\u0646\u062f.</p><button class='b alt full' onclick='$("xi-file").click()'>\u0627\u0646\u062a\u062e\u0627\u0628 \u0641\u0627\u06cc\u0644 \u0627\u06a9\u0633\u0644</button><input type='file' id='xi-file' accept='.xlsx,.xls' class='hide' onchange='xlsImport(this)'></div>`);
+
+/* ---- یکپارچگی داده‌های قدیمی و جدید ---- */
+const nidKnown=v=>items.some(i=>i.recv&&i.recv.nid===v);
+const nidPass=v=>nidOk(v)||(v.length===10&&(nidKnown(v)||$('d-nidforce').checked));
+$('d-nid').addEventListener('input',e=>{const v=e.target.value,bad=v.length===10&&!nidOk(v),k=bad&&nidKnown(v);
+ $('d-nidforce-w').classList.toggle('hide',!bad||k);if(!bad||k)$('d-nidforce').checked=false});
+mic($('d-addr'));
+function personView(nid){
+ const L=items.filter(i=>i.recv&&i.recv.nid===nid).sort((a,b)=>b.deliveredAt-a.deliveredAt),p=L[0];if(!p)return;const r=p.recv;
+ const P=items.filter(i=>i.status==='pending'&&((r.phone&&i.phone===r.phone)||i.name===r.name));
+ sheet(`<h3>${e2(r.name)}</h3><div class='info'>کد ملی: ${e2(nid)}<br>تلفن: ${e2(r.phone)||'-'} • تولد: ${e2(r.dob)||'-'}<br>آدرس: ${e2(r.addr)||'-'}</div>
+ <h3 style='margin-top:14px'>${nf(L.length)} بسته تحویل گرفته</h3>${L.slice(0,15).map(i=>`<div style='font-size:13px;color:var(--mu)'>${fa(i.deliveredAt)} — ${e2(i.code)} (${e2(i.name)})${i.cod?' • COD':''}</div>`).join('')}${L.length>15?`<div class='hint'>و ${nf(L.length-15)} مورد دیگر (در جستجو ببینید)</div>`:''}
+ ${P.length?`<h3 style='margin-top:14px'>${nf(P.length)} مرسوله در انتظار با همین تلفن/نام</h3>${P.map(i=>`<div style='font-size:13px'>${e2(i.code)} (${e2(i.name)})</div>`).join('')}`:''}
+ <div class='row' style='margin-top:14px'><button class='b alt' onclick='closeSheet()'>بستن</button><button class='b' onclick='closeSheet();$("s-q").value="${e2(nid)}";go("find")'>نمایش در جستجو</button></div>`);
+}
+$('t-set').insertAdjacentHTML('beforeend',`<div class='card'><b>لغو آخرین ورود از اکسل</b><p class='hint' style='min-height:0'>اگر ورود اشتباه بود، مرسوله‌های آخرین ورود که بعدش تغییری نکرده‌اند حذف می‌شوند.</p><button class='b alt full' onclick='undoImport()'>لغو آخرین ورود</button></div>`);
+async function undoImport(){
+ const bt=Math.max(0,...items.map(i=>i.imp||0));if(!bt){toast('ورودی از اکسل ثبت نشده است');return}
+ const all=items.filter(i=>i.imp===bt),same=all.filter(i=>!i.edited&&i.status===i.impSt);
+ if(!same.length){toast('همه موارد آن ورود بعداً تغییر کرده‌اند؛ چیزی حذف نمی‌شود');return}
+ const ok=await ask('لغو آخرین ورود',`از ${nf(all.length)} مرسوله آخرین ورود، <b>${nf(same.length)}</b> مورد (بدون تغییر بعد از ورود) حذف می‌شود.${all.length>same.length?`<br>${nf(all.length-same.length)} مورد که بعداً ویرایش، تحویل یا برگشت خورده‌اند می‌مانند.`:''}`,'حذف شود',true);
+ if(!ok)return;items=items.filter(i=>!same.includes(i));save();home();find();toast(`${nf(same.length)} مرسوله حذف شد`);
+}
 home();find();
 go('home');
 </script>
